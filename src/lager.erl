@@ -80,15 +80,26 @@ md(NewMD) when is_list(NewMD) ->
     end;
 md(_) ->
     erlang:error(badarg).
+    
+format_args([], Acc) ->
+  lists:reverse(Acc);
+format_args([H|T], Acc) when is_map(H) ->
+  Arg = lists:flatten(io_lib:format("~p", [H])),
+  format_args(T, [Arg|Acc]);
+format_args([H|T], Acc) ->
+  format_args(T, [H|Acc]);
+format_args(Args, _) ->
+  Args.
 
 -spec dispatch_log(log_level(), list(), string(), list() | none, pos_integer()) ->  ok | {error, lager_not_running}.
 %% this is the same check that the parse transform bakes into the module at compile time
-dispatch_log(Severity, Metadata, Format, Args, Size) when is_atom(Severity)->
+dispatch_log(Severity, Metadata, Format, RawArgs, Size) when is_atom(Severity)->
     SeverityAsInt=lager_util:level_to_num(Severity),
     case {whereis(lager_event), lager_config:get(loglevel, {?LOG_NONE, []})} of
         {undefined, _} ->
             {error, lager_not_running};
         {Pid, {Level, Traces}} when (Level band SeverityAsInt) /= 0 orelse Traces /= [] ->
+            Args = format_args(RawArgs),
             do_log(Severity, Metadata, Format, Args, Size, SeverityAsInt, Level, Traces, Pid);
         _ ->
             ok
